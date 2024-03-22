@@ -1,0 +1,32 @@
+version: "3"
+
+services:
+  pinger-1:
+    image: torrefatto/grpcprobe
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DEBUG: 1
+      NAME: pinger-1
+      PEERS: pinger-2
+
+  pinger-2:
+    image: torrefatto/grpcprobe
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DEBUG: 1
+      NAME: pinger-2
+      PEERS: pinger-3
+
+  pinger-3:
+    image: torrefatto/grpcprobe
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DEBUG: 1
+      NAME: pinger-3
+      PEERS: pinger-1
