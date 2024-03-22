@@ -1,7 +1,7 @@
 syntax = "proto3";
-package grpcprobe;
+package svc;
 
-option go_package = "github.com/torrefatto/grpc-probe";
+option go_package = "./svc";
 
 import "google/protobuf/timestamp.proto";
 
