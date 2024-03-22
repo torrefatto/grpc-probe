@@ -1,0 +1,20 @@
+syntax = "proto3";
+package grpcprobe;
+
+option go_package = "github.com/torrefatto/grpc-probe";
+
+import "google/protobuf/timestamp.proto";
+
+service Probe {
+    rpc PingIt (Ping) returns (Pong);
+}
+
+message Ping {
+  string sender = 1;
+  google.protobuf.Timestamp sent_at = 2;
+}
+
+message Pong {
+  string receiver = 1;
+  google.protobuf.Timestamp received_at = 2;
+}
