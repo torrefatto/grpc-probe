@@ -2,8 +2,10 @@ package grpcprobe
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -15,28 +17,40 @@ import (
 type Pinger struct {
 	name        string
 	peers       map[string]svc.ProbeClient
+	port        int
 	peerReceive <-chan string
 	frequency   time.Duration
 	logger      zerolog.Logger
+	successes   *prometheus.CounterVec
+	failures    *prometheus.CounterVec
 }
 
-func NewPinger(name string, peerReceive <-chan string, frequency time.Duration, logger zerolog.Logger, initialPeers []string) *Pinger {
-	peers := make(map[string]svc.ProbeClient)
-
-	for _, peer := range initialPeers {
-		client := addPeer(peer, logger)
-		if client != nil {
-			peers[peer] = client
-		}
-	}
-
-	return &Pinger{
+func NewPinger(
+	name string,
+	peerReceive <-chan string,
+	frequency time.Duration,
+	logger zerolog.Logger,
+	initialPeers []string,
+	port int,
+	successes *prometheus.CounterVec,
+	failures *prometheus.CounterVec,
+) *Pinger {
+	pinger := &Pinger{
 		name:        name,
-		peers:       peers,
+		peers:       make(map[string]svc.ProbeClient),
+		port:        port,
 		peerReceive: peerReceive,
 		frequency:   frequency,
 		logger:      logger,
+		successes:   successes,
+		failures:    failures,
 	}
+
+	for _, peer := range initialPeers {
+		pinger.addPeer(peer)
+	}
+
+	return pinger
 }
 
 func (p *Pinger) Run(ctx context.Context) {
@@ -51,10 +65,7 @@ func (p *Pinger) Run(ctx context.Context) {
 			return
 		case peer := <-p.peerReceive:
 			p.logger.Warn().Str("peer", peer).Msg("Received a peer")
-			client := addPeer(peer, p.logger)
-			if client != nil {
-				p.peers[peer] = client
-			}
+			p.addPeer(peer)
 		case <-ticker.C:
 			for peer := range p.peers {
 				go p.pingPong(ctx, peer)
@@ -70,6 +81,7 @@ func (p *Pinger) pingPong(ctx context.Context, target string) {
 	client, ok := p.peers[target]
 	if !ok {
 		p.logger.Error().Str("target", target).Msg("Failed to get a client")
+		p.failures.WithLabelValues(p.name, target, "client_missing").Inc()
 		return
 	}
 	pong, err := client.PingIt(ctx, &svc.Ping{
@@ -78,19 +90,30 @@ func (p *Pinger) pingPong(ctx context.Context, target string) {
 	})
 	if err != nil {
 		p.logger.Error().Err(err).Msg("Failed to send a ping")
+		p.failures.WithLabelValues(p.name, target, "ping").Inc()
 		return
 	}
 	p.logger.Debug().
 		Str("receiver", pong.Receiver).
 		Time("received_at", pong.ReceivedAt.AsTime()).
 		Msg("Received a pong")
+	p.successes.WithLabelValues(p.name, target).Inc()
 }
 
-func addPeer(peer string, logger zerolog.Logger) svc.ProbeClient {
-	conn, err := grpc.Dial(peer+":12345", grpc.WithTransportCredentials(insecure.NewCredentials()))
+func (p *Pinger) addPeer(peer string) {
+	p.logger.Debug().Str("peer", peer).Msg("Adding a peer")
+	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", peer, p.port), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		logger.Error().Err(err).Msg("Failed to connect to peer")
-		return nil
+		p.logger.Error().Err(err).Msg("Failed to connect to peer")
+		p.failures.WithLabelValues(p.name, peer, "conn").Inc()
+		return
 	}
-	return svc.NewProbeClient(conn)
+	client := svc.NewProbeClient(conn)
+	if client == nil {
+		p.logger.Error().Err(err).Msg("Failed to instantiate gRPC client")
+		p.failures.WithLabelValues(p.name, peer, "client").Inc()
+		return
+	}
+	p.logger.Info().Str("peer", peer).Msg("Added a peer")
+	p.peers[peer] = client
 }

@@ -2,11 +2,17 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 
@@ -16,6 +22,17 @@ import (
 
 var (
 	defaultFrequency = 3 * time.Second
+	defaultSvcPort   = 12345
+	metricsPort      = 9090
+
+	successes = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "grpc_probe_success",
+		Help: "The total number of failures",
+	}, []string{"src", "dst"})
+	failures = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "grpc_probe_failure",
+		Help: "The total number of failures",
+	}, []string{"src", "dst", "type"})
 )
 
 func main() {
@@ -30,6 +47,7 @@ func main() {
 	if debug {
 		logger = logger.Level(zerolog.DebugLevel)
 	}
+	logger.Debug().Msg("Starting")
 
 	name := os.Getenv("NAME")
 	if name == "" {
@@ -50,14 +68,27 @@ func main() {
 		peers = strings.Split(peerStr, ",")
 	}
 
-	lis, err := net.Listen("tcp", ":12345")
+	var svcPort int
+	if portStr := os.Getenv("PORT"); portStr != "" {
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			logger.Fatal().Err(err).Msg("Invalid PORT")
+		}
+		svcPort = port
+	} else {
+		svcPort = defaultSvcPort
+	}
+
+	go setupPrometheus(metricsPort)
+
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", svcPort))
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to listen")
 	}
 	s := grpc.NewServer()
 	peerCh := make(chan string)
 
-	pinger := grpcprobe.NewPinger(name, peerCh, defaultFrequency, logger, peers)
+	pinger := grpcprobe.NewPinger(name, peerCh, defaultFrequency, logger, peers, svcPort, successes, failures)
 	server := grpcprobe.NewProbeService(name, peerCh, logger)
 
 	svc.RegisterProbeServer(s, server)
@@ -73,4 +104,9 @@ func main() {
 	time.Sleep(1 * time.Second)
 
 	pinger.Run(ctx)
+}
+
+func setupPrometheus(port int) {
+	http.Handle("/metrics", promhttp.Handler())
+	http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
 }
