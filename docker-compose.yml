@@ -10,6 +10,8 @@ services:
       DEBUG: 1
       NAME: pinger-1
       PEERS: pinger-2
+    ports:
+      - "9091:9090"
 
   pinger-2:
     image: torrefatto/grpcprobe
@@ -20,6 +22,8 @@ services:
       DEBUG: 1
       NAME: pinger-2
       PEERS: pinger-3
+    ports:
+      - "9092:9090"
 
   pinger-3:
     image: torrefatto/grpcprobe
@@ -30,3 +34,12 @@ services:
       DEBUG: 1
       NAME: pinger-3
       PEERS: pinger-1
+    ports:
+      - "9093:9090"
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - "./dev/prometheus.yml:/etc/prometheus/prometheus.yml"
+    ports:
+      - "9090:9090"

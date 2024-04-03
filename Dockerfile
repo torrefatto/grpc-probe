@@ -14,5 +14,6 @@ FROM scratch
 COPY --from=builder /grpcprober /
 
 EXPOSE 12345
+EXPOSE 9090
 
 ENTRYPOINT ["/grpcprober"]
