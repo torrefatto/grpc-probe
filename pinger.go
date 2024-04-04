@@ -47,7 +47,11 @@ func NewPinger(
 	}
 
 	for _, peer := range initialPeers {
-		pinger.addPeer(peer)
+		_, err := pinger.addPeer(peer)
+		if err != nil {
+			pinger.logger.Error().Err(err).Str("peer", peer).Msg("Failed to add peer")
+			pinger.peers[peer] = nil
+		}
 	}
 
 	return pinger
@@ -79,10 +83,13 @@ func (p *Pinger) pingPong(ctx context.Context, target string) {
 		Str("target", target).
 		Msg("Sending a ping")
 	client, ok := p.peers[target]
-	if !ok {
-		p.logger.Error().Str("target", target).Msg("Failed to get a client")
-		p.failures.WithLabelValues(p.name, target, "client_missing").Inc()
-		return
+	if !ok || client == nil {
+		var err error
+		client, err = p.addPeer(target)
+		if err != nil {
+			p.logger.Error().Err(err).Msg("Cannot ping")
+			return
+		}
 	}
 	pong, err := client.PingIt(ctx, &svc.Ping{
 		Sender: p.name,
@@ -91,6 +98,7 @@ func (p *Pinger) pingPong(ctx context.Context, target string) {
 	if err != nil {
 		p.logger.Error().Err(err).Msg("Failed to send a ping")
 		p.failures.WithLabelValues(p.name, target, "ping").Inc()
+		p.peers[target] = nil
 		return
 	}
 	p.logger.Debug().
@@ -100,20 +108,21 @@ func (p *Pinger) pingPong(ctx context.Context, target string) {
 	p.successes.WithLabelValues(p.name, target).Inc()
 }
 
-func (p *Pinger) addPeer(peer string) {
+func (p *Pinger) addPeer(peer string) (svc.ProbeClient, error) {
 	p.logger.Debug().Str("peer", peer).Msg("Adding a peer")
 	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", peer, p.port), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		p.logger.Error().Err(err).Msg("Failed to connect to peer")
 		p.failures.WithLabelValues(p.name, peer, "conn").Inc()
-		return
+		return nil, fmt.Errorf("Failed to connect")
 	}
 	client := svc.NewProbeClient(conn)
 	if client == nil {
 		p.logger.Error().Err(err).Msg("Failed to instantiate gRPC client")
 		p.failures.WithLabelValues(p.name, peer, "client").Inc()
-		return
+		return nil, fmt.Errorf("Failed to instantiate client")
 	}
 	p.logger.Info().Str("peer", peer).Msg("Added a peer")
 	p.peers[peer] = client
+	return client, nil
 }
