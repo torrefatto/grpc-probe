@@ -65,7 +65,7 @@ func main() {
 
 	var peers []string
 	if peerStr := os.Getenv("PEERS"); peerStr != "" {
-		peers = strings.Split(peerStr, ",")
+		peers = strings.Split(peerStr, ";")
 	}
 
 	var svcPort int

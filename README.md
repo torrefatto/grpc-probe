@@ -8,7 +8,7 @@ It accepts the following environment variables:
  - `NAME`: the name of the current instance to which it is reachable in the mesh
  - `DEBUG`: if set to any value, enables debug logs
  - `FREQUENCY`: how often to ping the peers (follows the usual golang `time.Duration` format)
- - `PEERS`: a comma separated list of peers to be contacted
+ - `PEERS`: a semicolon-separated list of peers to be contacted
  - `PORT`: the port at which each peer and itself must expose the gRPC service
 
 ## Dev
