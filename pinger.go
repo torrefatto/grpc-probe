@@ -35,6 +35,12 @@ func NewPinger(
 	successes *prometheus.CounterVec,
 	failures *prometheus.CounterVec,
 ) *Pinger {
+	logger.Debug().
+		Str("name", name).
+		Dur("frequency", frequency).
+		Int("port", port).
+		Strs("initialPeers", initialPeers).
+		Msg("Creating a new pinger")
 	pinger := &Pinger{
 		name:        name,
 		peers:       make(map[string]svc.ProbeClient),

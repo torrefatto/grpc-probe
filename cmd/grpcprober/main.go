@@ -88,7 +88,16 @@ func main() {
 	s := grpc.NewServer()
 	peerCh := make(chan string)
 
-	pinger := grpcprobe.NewPinger(name, peerCh, defaultFrequency, logger, peers, svcPort, successes, failures)
+	pinger := grpcprobe.NewPinger(
+		name,
+		peerCh,
+		defaultFrequency,
+		logger,
+		peers,
+		svcPort,
+		successes,
+		failures,
+	)
 	server := grpcprobe.NewProbeService(name, peerCh, logger)
 
 	svc.RegisterProbeServer(s, server)
