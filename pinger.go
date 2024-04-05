@@ -109,8 +109,9 @@ func (p *Pinger) pingPong(ctx context.Context, target string) {
 }
 
 func (p *Pinger) addPeer(peer string) (svc.ProbeClient, error) {
-	p.logger.Debug().Str("peer", peer).Msg("Adding a peer")
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", peer, p.port), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	targetAddr := fmt.Sprintf("%s:%d", peer, p.port)
+	p.logger.Debug().Str("peer", peer).Str("targetAddr", targetAddr).Msg("Adding a peer")
+	conn, err := grpc.Dial(targetAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		p.logger.Error().Err(err).Msg("Failed to connect to peer")
 		p.failures.WithLabelValues(p.name, peer, "conn").Inc()
