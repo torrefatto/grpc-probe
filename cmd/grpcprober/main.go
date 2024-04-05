@@ -69,7 +69,7 @@ func main() {
 	}
 
 	var svcPort int
-	if portStr := os.Getenv("PORT"); portStr != "" {
+	if portStr := os.Getenv("PEERS_PORT"); portStr != "" {
 		port, err := strconv.Atoi(portStr)
 		if err != nil {
 			logger.Fatal().Err(err).Msg("Invalid PORT")
