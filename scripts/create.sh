@@ -23,8 +23,8 @@ for i in {1..${#REGIONS}}; do
         --git github.com/torrefatto/grpc-probe \
         --git-builder docker \
         --env "NAME=${SVC}.${APP}.koyeb" \
-        --env "PEERS='${PEERS}'" \
-        --port 12345 \
+        --env "PEERS=${PEERS}" \
+        --port 12345:tcp \
         --port 9090:http \
         --routes /${SVC}:9090 \
         --region "${SVC}" \
